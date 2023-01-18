@@ -1,4 +1,4 @@
-module marsmonkeys.com/m
+module gijthub.com/Nft-Diffusion/api
 
 go 1.18
 
