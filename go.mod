@@ -1,4 +1,4 @@
-module gijthub.com/Nft-Diffusion/api
+module github.com/Nft-Diffusion/api
 
 go 1.18
 
