@@ -23,13 +23,21 @@ func main() {
 		log.Fatal(err)
 	}
 }
+func getEnv(env string) string {
+	ve := os.Getenv(env)
+	_, ok := os.LookupEnv(ve)
+	if !ok {
+		err := godotenv.Load()
+		if err != nil {
+			fmt.Println("Error loading .env file")
+		}
+	}
+	version := os.Getenv(env)
+	return version
+}
 
 func imageHandler(w http.ResponseWriter, r *http.Request) {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Error loading .env file")
-	}
-	version := os.Getenv("version")
+	version := getEnv("version")
 	p := Payload{
 		Version: version,
 		Input: Input{
@@ -77,8 +85,9 @@ func postData(url string, payload Payload) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	token := getEnv("token")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Token 55161acfcb4b8c4cb767169002c204c0b09f9dae")
+	req.Header.Set("Authorization", "Token "+token)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
