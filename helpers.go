@@ -1,14 +1,89 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
+	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/joho/godotenv"
 )
 
+// KeyGen Create a new keypair
+func KeyGen(ctx context.Context, name string) (*Key, error) {
+	defer wg.Done()
+	sh := shell.NewShell("localhost:5001")
+	rb := sh.Request("key/gen", name)
+
+	var out Key
+	if err := rb.Exec(ctx, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+func addFolderToIpfs(folderPath string) (string, error) {
+	sh := shell.NewShell("localhost:5001")
+	added, err := sh.AddDir(folderPath)
+	if err != nil {
+		return "", errors.New("adding dir to ipfs")
+	}
+	return added, nil
+}
+func pushUrlToIpfs(url string, key string) {
+	sh := shell.NewShell("localhost:5001")
+	resp, err := http.Get(url)
+	if err != nil {
+		handleError(err)
+	}
+	defer resp.Body.Close()
+
+	imageBytes, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		handleError(err)
+	}
+	r := bytes.NewReader(imageBytes)
+	s, err := sh.Add(r)
+	if err != nil {
+		handleError(err)
+	}
+	err = sh.Pin(s)
+	if err != nil {
+		fmt.Println("Error with Pinning ipfs")
+	}
+	publishIpns(s, key)
+}
+
+func publishIpnsAndWrite(tokenId string, ipfs string) {
+	defer wg.Done()
+	ipns := publishIpns(ipfs, "token"+tokenId)
+	data := Metadata{
+		Description:  "A description of NFT",
+		Name:         "Nft Diffusion",
+		External_url: "http://google.com",
+		Image:        "/ipns/" + ipns,
+	}
+	file, _ := json.MarshalIndent(data, "", "")
+	_ = ioutil.WriteFile("metadata/"+tokenId+".json", file, 0644)
+	fmt.Println("Finished!")
+}
+func publishIpns(ipfsPath string, keyName string) string {
+	sh := shell.NewShell("localhost:5001")
+	resp, err := sh.PublishWithDetails(ipfsPath, keyName, time.Second*100000, time.Second, false)
+	if err != nil {
+		fmt.Println("Error3")
+		log.Fatal(err)
+	}
+	fmt.Println(resp)
+	return resp.Name
+}
 func getEnv(env string) string {
 	ve := os.Getenv(env)
 	_, ok := os.LookupEnv(ve)
@@ -20,20 +95,4 @@ func getEnv(env string) string {
 	}
 	version := os.Getenv(env)
 	return version
-}
-func writingBytesToFile(dest string, b []byte) {
-	file, err := os.Create(dest)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-	file.Write(b)
-}
-
-func readingBytesFromFile(dest string) []byte {
-	body, err := ioutil.ReadFile(dest)
-	if err != nil {
-		log.Fatalf("unable to read file: %v", err)
-	}
-	return body
 }

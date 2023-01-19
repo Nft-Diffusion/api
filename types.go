@@ -45,3 +45,17 @@ type Payload struct {
 	Version string `json:"version"`
 	Input   Input  `json:"input"`
 }
+type Metadata struct {
+	Description  string `json:"description"`
+	External_url string `json:"external_url"`
+	Image        string `json:"image"`
+	Name         string `json:"name"`
+}
+
+// {
+//   "description": "Friendly OpenSea Creature that enjoys long swims in the ocean.",
+//   "external_url": "https://openseacreatures.io/3",
+//   "image": "https://storage.googleapis.com/opensea-prod.appspot.com/puffs/3.png",
+//   "name": "Dave Starbelly",
+//   "attributes": [ ... ]
+// }

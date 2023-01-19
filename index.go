@@ -9,13 +9,16 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
-
-	shell "github.com/ipfs/go-ipfs-api"
 )
+
+var wg sync.WaitGroup
 
 func main() {
 	http.HandleFunc("/retrieveImage", imageHandler)
+	http.HandleFunc("/genkeys", genKeys)
 	port := ":3000"
 	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatal(err)
@@ -23,6 +26,36 @@ func main() {
 	fmt.Println("Running API on port " + port)
 }
 
+func genKeys(w http.ResponseWriter, r *http.Request) {
+	//todo
+	// Error handlers
+	ctx := context.Background()
+	tokenId := 0
+	for tokenId <= 100 {
+		wg.Add(1)
+		fmt.Println("running!")
+		go KeyGen(ctx, "token"+strconv.Itoa(tokenId))
+		tokenId++
+	}
+	wg.Wait()
+	seedMetadata()
+	io.WriteString(w, "Keys have been successfully generated!")
+}
+func seedMetadata() string {
+	tokenId := 0
+	for tokenId <= 100 {
+		wg.Add(1)
+		go publishIpnsAndWrite(strconv.Itoa(tokenId), "QmVMWN461ChmwQt1q4HuQ8zdenbMttAhFTFLndsDxru226")
+		tokenId++
+	}
+	wg.Wait()
+	ipfs, err := addFolderToIpfs("/metadata")
+	if err != nil {
+		return ""
+		// handle err
+	}
+	return ipfs
+}
 func imageHandler(w http.ResponseWriter, r *http.Request) {
 	version := getEnv("version")
 	p := Payload{
@@ -46,12 +79,9 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Printf("%#v\n", d.Urls.Get)
 	imageUrl := retrieveImage(d.Urls.Get)
-	pushToIpfs(imageUrl, "test1")
-	//// publishIpns("/ipfs/QmbkDDY6u15Tdc16KKrHXgNu89aAGxbxcG2oCchGVEtR7A")
+	pushUrlToIpfs(imageUrl, "test1")
 	io.WriteString(w, "This is my website!")
-
 }
-
 func retrieveImage(url string) string {
 	// Loop
 	attempts := 0
@@ -123,72 +153,3 @@ func handleError(err error) {
 	fmt.Println("Error Occured!")
 	fmt.Println(err)
 }
-func pushToIpfs(url string, key string) {
-	sh := shell.NewShell("localhost:5001")
-	resp, err := http.Get(url)
-	if err != nil {
-		handleError(err)
-	}
-	defer resp.Body.Close()
-
-	imageBytes, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		handleError(err)
-	}
-	r := bytes.NewReader(imageBytes)
-	s, err := sh.Add(r)
-	if err != nil {
-		handleError(err)
-	}
-	err = sh.Pin(s)
-	if err != nil {
-		fmt.Println("Error with Pinning ipfs")
-	}
-	publishIpns(s, key)
-}
-
-// func generateKey() {
-// 	ctx := context.Background()
-// 	// Generate Key
-// 	_, err := KeyGen(ctx, "test1")
-// 	if err != nil {
-// 		fmt.Println("Key Gen Failed!")
-// 		log.Fatal(err)
-// 	}
-// }
-
-func publishIpns(ipfsPath string, keyName string) {
-	sh := shell.NewShell("localhost:5001")
-	resp, err := sh.PublishWithDetails(ipfsPath, keyName, time.Second*100000, time.Second, false)
-	if err != nil {
-		fmt.Println("Error3")
-		log.Fatal(err)
-	}
-	fmt.Println(resp)
-}
-
-// KeyGen Create a new keypair
-func KeyGen(ctx context.Context, name string) (*Key, error) {
-	sh := shell.NewShell("localhost:5001")
-	rb := sh.Request("key/gen", name)
-
-	var out Key
-	if err := rb.Exec(ctx, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// func testCrypt() {
-// 	privateKey, _, err := crypto.GenerateKeyPair(crypto.RSA, 2048)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	keyBytes := privateKey.Raw
-// 	data, err := keyBytes()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	writingBytesToFile("/test/data.txt", data)
-// }
