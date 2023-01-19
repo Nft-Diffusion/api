@@ -9,31 +9,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	shell "github.com/ipfs/go-ipfs-api"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-
 	http.HandleFunc("/retrieveImage", imageHandler)
-	if err := http.ListenAndServe(":3000", nil); err != nil {
+	port := ":3000"
+	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatal(err)
 	}
-}
-func getEnv(env string) string {
-	ve := os.Getenv(env)
-	_, ok := os.LookupEnv(ve)
-	if !ok {
-		err := godotenv.Load()
-		if err != nil {
-			fmt.Println("Error loading .env file")
-		}
-	}
-	version := os.Getenv(env)
-	return version
+	fmt.Println("Running API on port " + port)
 }
 
 func imageHandler(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +65,6 @@ func retrieveImage(url string) string {
 	}
 	return ""
 }
-
 func postData(url string, payload Payload) ([]byte, error) {
 	jsonValue, _ := json.Marshal(payload)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonValue))
@@ -97,7 +83,6 @@ func postData(url string, payload Payload) ([]byte, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	return body, err
 }
-
 func getDiffusionState(url string) (string, string) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -156,18 +141,22 @@ func pushToIpfs(url string, key string) {
 	if err != nil {
 		handleError(err)
 	}
-	fmt.Println(s)
+	err = sh.Pin(s)
+	if err != nil {
+		fmt.Println("Error with Pinning ipfs")
+	}
 	publishIpns(s, key)
 }
-func generateKey() {
-	ctx := context.Background()
-	// Generate Key
-	_, err := KeyGen(ctx, "test1")
-	if err != nil {
-		fmt.Println("Key Gen Failed!")
-		log.Fatal(err)
-	}
-}
+
+// func generateKey() {
+// 	ctx := context.Background()
+// 	// Generate Key
+// 	_, err := KeyGen(ctx, "test1")
+// 	if err != nil {
+// 		fmt.Println("Key Gen Failed!")
+// 		log.Fatal(err)
+// 	}
+// }
 
 func publishIpns(ipfsPath string, keyName string) {
 	sh := shell.NewShell("localhost:5001")
@@ -177,11 +166,6 @@ func publishIpns(ipfsPath string, keyName string) {
 		log.Fatal(err)
 	}
 	fmt.Println(resp)
-}
-
-type Key struct {
-	Id   string
-	Name string
 }
 
 // KeyGen Create a new keypair

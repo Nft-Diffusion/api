@@ -1,5 +1,9 @@
 package main
 
+type Key struct {
+	Id   string
+	Name string
+}
 type Urls struct {
 	Get    string
 	Cancel string
