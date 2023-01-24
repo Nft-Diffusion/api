@@ -17,9 +17,10 @@ import (
 var wg sync.WaitGroup
 
 func main() {
-	http.HandleFunc("/retrieveImage", imageHandler)
+	http.HandleFunc("/generateImage", imageHandler)
 	http.HandleFunc("/genkeys", genKeys)
-	port := ":3000"
+	http.HandleFunc("/seedmetadata", seedMetadata)
+	port := ":8000"
 	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatal(err)
 	}
@@ -38,10 +39,10 @@ func genKeys(w http.ResponseWriter, r *http.Request) {
 		tokenId++
 	}
 	wg.Wait()
-	seedMetadata()
+	//seedMetadata()
 	io.WriteString(w, "Keys have been successfully generated!")
 }
-func seedMetadata() string {
+func seedMetadata(w http.ResponseWriter, r *http.Request) {
 	tokenId := 0
 	for tokenId <= 100 {
 		wg.Add(1)
@@ -49,21 +50,37 @@ func seedMetadata() string {
 		tokenId++
 	}
 	wg.Wait()
-	ipfs, err := addFolderToIpfs("/metadata")
+	ipfs, err := addFolderToIpfs("./metadata")
 	if err != nil {
-		return ""
-		// handle err
+		fmt.Println(err)
+		io.WriteString(w, "Seeding Failed!")
+		return
 	}
-	return ipfs
+	io.WriteString(w, ipfs)
+}
+func cors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }
 func imageHandler(w http.ResponseWriter, r *http.Request) {
+	cors(&w)
+	var ImageParams CreateImageReq
 	version := getEnv("version")
+	fmt.Println("GENERATING IMAGE")
+	err := json.NewDecoder(r.Body).Decode(&ImageParams)
+
+	if err != nil {
+		fmt.Println(err)
+		io.WriteString(w, `{"error":"Error With Image Params"}`)
+		return
+	}
+
 	p := Payload{
 		Version: version,
 		Input: Input{
-			Prompt: "A tiger on a boat",
+			Prompt: ImageParams.Param,
 		},
 	}
+
 	resp, err := postData("https://api.replicate.com/v1/predictions", p)
 	if err != nil {
 		panic(err)
@@ -77,10 +94,13 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Println("JSON is not valid!")
 	}
+
 	fmt.Printf("%#v\n", d.Urls.Get)
 	imageUrl := retrieveImage(d.Urls.Get)
-	pushUrlToIpfs(imageUrl, "test1")
-	io.WriteString(w, "This is my website!")
+	ipfsCID := pushUrlToIpfs(imageUrl)
+	ipns, err := publishIpns(ipfsCID, "token"+ImageParams.TokenId)
+	fmt.Println(ipns)
+	io.WriteString(w, `{"image":"`+imageUrl+`"}`)
 }
 func retrieveImage(url string) string {
 	// Loop
@@ -103,6 +123,7 @@ func postData(url string, payload Payload) ([]byte, error) {
 	}
 	token := getEnv("token")
 	req.Header.Set("Content-Type", "application/json")
+	fmt.Println(token)
 	req.Header.Set("Authorization", "Token "+token)
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -118,7 +139,8 @@ func getDiffusionState(url string) (string, string) {
 	if err != nil {
 		return "error", ""
 	}
-	req.Header.Set("Authorization", "Token 55161acfcb4b8c4cb767169002c204c0b09f9dae")
+	token := getEnv("token")
+	req.Header.Set("Authorization", "Token "+token)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {

@@ -4,10 +4,17 @@ type Key struct {
 	Id   string
 	Name string
 }
+
 type Urls struct {
 	Get    string
 	Cancel string
 }
+
+type CreateImageReq struct {
+	TokenId string `json:"tokenId"`
+	Param   string `json:"param"`
+}
+
 type DiffusionResp struct {
 	Completed_at      string
 	Created_at        string
@@ -23,6 +30,7 @@ type DiffusionResp struct {
 	Version           string
 	Webhook_completed string
 }
+
 type DiffusionGet struct {
 	Completed_at      string
 	Created_at        string
